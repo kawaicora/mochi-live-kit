@@ -1,0 +1,58 @@
+# ===== 本地配置模板（提交入库；真实配置 livekit.yaml 已在 .gitignore 忽略）=====
+# 用法：cp livekit.yaml.sample livekit.yaml，然后替换下面所有 CHANGE_ME_* 占位符。
+# 注意：LiveKit 的配置文件不会展开 ${VAR}（实测 1.13.x 会把 ${LIVEKIT_API_KEY}
+# 当作字面量，导致 secret too short / invalid API key）。密钥、TURN 凭据必须直接写成本值。
+
+# 主 TCP 端口：RoomService 与 RTC 信号（WebSocket）端点。
+port: 7880
+bind_addresses:
+  - ""
+
+# WebRTC 配置
+rtc:
+  tcp_port: 7881
+  port_range_start: 20000
+  port_range_end: 25000
+  # 通过 STUN 自动探测服务器公网 IP（服务器为 NAT 内云主机时使用）
+  use_external_ip: true
+  # 同时向客户端广告内网 + 公网候选：同网段/内网客户端可以直连（host 候选），
+  # 公网客户端走映射后的公网 IP，能直连就直连，不强制绕 TURN。
+  advertise_internal_ip: true
+  # UDP 不稳定时自动回退到 ICE/TCP 或 TURN
+  allow_tcp_fallback: true
+  # 客户端可用于直连（STUN）的服务器：客户端会先打 STUN 获取反射候选，
+  # 能 P2P 直连就直连，直连失败才走下面的 TURN 中继。
+  stun_servers:
+    - stun.l.google.com:19302
+    - stun.cloudflare.com:3478
+  # TURN 中继（直连失败时的兜底）：本机 coturn（host 网络，app.kawaimoe.org:3478）。
+  turn_servers:
+    - host: CHANGE_ME_TURN_HOST      # 例：app.example.com
+      port: 3478
+      protocol: udp
+      username: coturn
+      credential: CHANGE_ME_COTURN_PASSWORD
+    - host: CHANGE_ME_TURN_HOST
+      port: 3478
+      protocol: tcp
+      username: coturn
+      credential: CHANGE_ME_COTURN_PASSWORD
+
+# Redis：房间状态存储；单节点也建议开启（多节点/嵌入式 TURN 都需要）。
+redis:
+  address: 127.0.0.1:6379
+
+# Ingress：为 CreateIngress API 提供 RTMP/WHIP 的公网基址（OBS 推流地址由它生成）。
+ingress:
+  rtmp_base_url: 'rtmp://CHANGE_ME_DOMAIN/live'
+  whip_base_url: 'https://CHANGE_ME_DOMAIN/whip'
+
+# API 密钥对：用于签发 JWT 访问令牌、调用服务端 API。
+# 直接写本值（不要用 ${VAR}，配置文件不展开环境变量）。
+keys:
+  CHANGE_ME_LIVEKIT_KEY: CHANGE_ME_LIVEKIT_SECRET
+
+# 日志
+logging:
+  level: info
+  pion_level: error

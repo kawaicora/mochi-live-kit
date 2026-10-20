@@ -1,0 +1,12 @@
+# ===== Caddy 反向代理模板（使用前：复制为 Caddyfile，并把 CHANGE_ME_DOMAIN 换成你的域名）=====
+# 前提：DNS 的 A 记录 CHANGE_ME_DOMAIN -> 本机公网 IP，且 80/443 对公网可达。
+# 注意：全部 host 网络，livekit 直接监听宿主 7880，这里用 127.0.0.1 访问。
+
+CHANGE_ME_DOMAIN {
+    # WHIP 推流（OBS）→ Ingress 的 8080（注意放在 livekit 之前，/whip* 更精确匹配）
+    reverse_proxy /whip* 127.0.0.1:8080
+
+    # 一次性反代根路径：HTTP API（/api, /rtc, /twirp 等）与 WebSocket 信号共用 7880，
+    # Caddy 对 WebSocket 自动升级，无需额外配置。
+    reverse_proxy 127.0.0.1:7880
+}

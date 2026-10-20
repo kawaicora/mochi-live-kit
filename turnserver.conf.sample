@@ -1,0 +1,38 @@
+# ===== 本地配置模板（提交入库；真实配置 turnserver.conf 已在 .gitignore 忽略）=====
+# 用法：cp turnserver.conf.sample turnserver.conf，替换 CHANGE_ME_* / YOUR_PUBLIC_IP。
+
+# 主监听端口（TCP+UDP 共用 3478）
+listening-port=3478
+
+# 公网IP【务必替换为你的服务器公网IP】
+external-ip=YOUR_PUBLIC_IP
+# 绑定所有网卡
+listening-ip=0.0.0.0
+
+# 中继端口范围
+min-port=30000
+max-port=60000
+
+# 认证
+lt-cred-mech
+user=coturn:CHANGE_ME_COTURN_PASSWORD
+no-auth-secret
+no-anonymous
+
+# WebRTC 指纹，浏览器ICE必需
+fingerprint
+
+# 日志
+log-file=/var/log/turnserver.log
+verbose
+
+# 资源限制
+max-allocation=100
+allocation-timeout=300
+
+# 同时启用STUN+TURN
+# no-stun
+
+# 证书（TLS加密才需要，不用则注释）
+# cert=/etc/coturn/certs/fullchain.pem
+# pkey=/etc/coturn/certs/privkey.pem

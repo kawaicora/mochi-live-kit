@@ -1,0 +1,9 @@
+# ===== 本地敏感配置：仓库只保留 *.sample 模板 =====
+livekit.yaml
+ingress.yaml
+turnserver.conf
+# 运行时日志
+turnserver.log
+# 数据目录（bind mount，随目录整体迁移，不入库）
+data/
+Caddyfile

@@ -1,0 +1,80 @@
+# LiveKit SFU 单机部署（Docker Compose）
+# 组成：livekit-server（SFU） + redis（房间状态） + coturn（TURN/STUN） + ingress（OBS 推流）
+#      + caddy（TLS 反代，默认注释，可选）
+#
+# 说明：
+# - 全部服务使用 host 网络模式：livekit 媒体/回退端口、redis 6379、coturn 3478 都直连
+#   宿主网络栈，livekit 经 127.0.0.1:6379 访问 redis（host 下不走服务名 DNS）。
+# - livekit 的 WebRTC 媒体需要 20000-25000/UDP 端口范围，host 模式免端口映射、性能最好。
+#   （媒体端口放在 coturn 中继范围 30000-60000 之下，避免冲突）
+# - 所有持久化数据统一用 bind mount 挂到 ./data/<name>-data（redis / caddy 证书
+#   与配置），不创建命名卷，整个目录拷贝即可整体迁移。
+# - 密钥、TURN 凭据全部直接写在 livekit.yaml / ingress.yaml 里（LiveKit 配置文件
+#   不会展开 ${VAR}，用环境变量是无效的，所以不再从 .env 注入）。
+# - 反向代理默认由 1Panel 承担：把 live.kawaimoe.org 反代到宿主 127.0.0.1:7880（开 WebSocket）。
+#   Caddy 服务已注释，需要时取消注释即可自动申请证书（Let's Encrypt / ZeroSSL）。
+#
+# 部署前确认 DNS 的 A 记录指向本机公网 IP。
+
+services:
+  # ---------- 房间状态存储（内部网络，不对外发布） ----------
+  redis-3fc8d7:
+    image: redis:7-alpine
+    container_name: redis-3fc8d7
+    restart: unless-stopped
+    network_mode: host
+    command: ["redis-server", "/etc/redis/redis.conf"]
+    volumes:
+      - ./redis.conf:/etc/redis/redis.conf:ro
+      - ./data/redis-data:/data
+
+  # ---------- LiveKit SFU ----------
+  livekit-3fc8d7:
+    image: livekit/livekit-server:latest
+    container_name: livekit-3fc8d7
+    restart: unless-stopped
+    network_mode: host
+    command: ["--config", "/etc/livekit.yaml"]
+    volumes:
+      - ./livekit.yaml:/etc/livekit.yaml:ro
+    depends_on:
+      - redis-3fc8d7
+  coturn-3fc8d7:
+    image: coturn/coturn
+    container_name: coturn-3fc8d7
+    restart: always
+    network_mode: host
+    command: []
+    volumes:
+      - ./turnserver.conf:/etc/coturn/turnserver.conf
+      - ./turnserver.log:/var/log/turnserver.log
+
+  # ---------- Ingress：OBS 推流（RTMP 1935 / WHIP 8080 + 7885/udp） ----------
+  ingress-3fc8d7:
+    image: livekit/ingress:latest
+    container_name: ingress-3fc8d7
+    restart: unless-stopped
+    # host 网络：WHIP 会话需要 UDP 7885 直连；与 livekit/redis 同宿主栈互通。
+    network_mode: host
+    environment:
+      # 仅指定配置文件路径；api_key/api_secret/ws_url 写在 ingress.yaml 里
+      INGRESS_CONFIG_FILE: /etc/ingress.yaml
+    volumes:
+      - ./ingress.yaml:/etc/ingress.yaml:ro
+    depends_on:
+      - redis-3fc8d7
+  # ---------- 反向代理 + 自动 TLS（可选，默认注释） ----------
+  # 默认不启用 Caddy：改用 1Panel 反向代理，把 live.kawaimoe.org 反代到宿主 127.0.0.1:7880，
+  # 并开启 WebSocket（保留 Upgrade/Connection 头）。媒体 UDP 与 TURN 直连服务器，不走反代。
+  # 如需用 Caddy（host 网络，占宿主 80/443）自动签发证书并反代，取消下面整段注释即可：
+  # caddy-3fc8d7:
+  #   image: caddy:2
+  #   container_name: caddy-3fc8d7
+  #   restart: unless-stopped
+  #   network_mode: host
+  #   volumes:
+  #     - ./Caddyfile:/etc/caddy/Caddyfile:ro
+  #     - ./data/caddy-data:/data      # 证书与 acme 状态，随目录迁移
+  #     - ./data/caddy-config:/config
+  #   depends_on:
+  #     - livekit-3fc8d7
